@@ -1,3 +1,4 @@
+
 import io
 from typing import Optional, Tuple
 
@@ -355,19 +356,25 @@ fig_line.add_trace(go.Scatter(
 ))
 st.plotly_chart(fig_line, use_container_width=True)
 
-st.subheader("Gráfica solicitada: diámetro medido en X y tiempo en Y")
+st.subheader("Respuesta del proceso: diámetro medido vs tiempo")
 
 if col_tiempo:
-    y_scatter = "_tiempo_dt" if df["_tiempo_dt"].notna().sum() > 0 else col_tiempo
+
+    x_time = "_tiempo_dt" if df["_tiempo_dt"].notna().sum() > 0 else col_tiempo
+
     fig_scatter = px.scatter(
         df,
-        x=col_med,
-        y=y_scatter,
+        x=x_time,
+        y=col_med,
         color=col_obj,
-        title="Diámetro medido vs tiempo",
+        title="Diámetro medido en función del tiempo",
         hover_data=[col_obj]
     )
+
     st.plotly_chart(fig_scatter, use_container_width=True)
+
+else:
+    st.warning("Selecciona una columna de tiempo para generar la gráfica.")
 else:
     st.info("Para esta gráfica necesitas seleccionar una columna de tiempo.")
 
