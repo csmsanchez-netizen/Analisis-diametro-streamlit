@@ -1,4 +1,3 @@
-
 import io
 from typing import Optional, Tuple
 
@@ -9,7 +8,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 
-st.set_page_config(page_title="Análisis avanzado de respuesta del proceso", layout="wide")
+st.set_page_config(
+    page_title="Análisis avanzado de respuesta del proceso",
+    layout="wide"
+)
 
 
 def normalizar_nombre(col: str) -> str:
@@ -90,7 +92,7 @@ def preparar_datos(
 def tiempo_evento(
     df: pd.DataFrame,
     idx_inicio: int,
-    idx_fin: int,
+    idx_fin: Optional[int],
     col_tiempo: Optional[str]
 ):
     if idx_fin is None:
@@ -226,7 +228,12 @@ def filtrar_transiciones_especificas(
     return df_eventos[cond1 | cond2].copy()
 
 
-def exportar_excel(df_datos: pd.DataFrame, df_eventos: pd.DataFrame, df_resumen: pd.DataFrame, df_especificos: pd.DataFrame) -> bytes:
+def exportar_excel(
+    df_datos: pd.DataFrame,
+    df_eventos: pd.DataFrame,
+    df_resumen: pd.DataFrame,
+    df_especificos: pd.DataFrame
+) -> bytes:
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df_datos.to_excel(writer, sheet_name="datos_procesados", index=False)
@@ -243,12 +250,37 @@ with st.sidebar:
 
     archivo = st.file_uploader("Sube tu Excel", type=["xlsx", "xls"])
 
-    valor_bajo = st.number_input("Valor bajo de transición", value=0.2, step=0.1, format="%.4f")
-    valor_alto = st.number_input("Valor alto de transición", value=0.5, step=0.1, format="%.4f")
+    valor_bajo = st.number_input(
+        "Valor bajo de transición",
+        value=0.2,
+        step=0.1,
+        format="%.4f"
+    )
+    valor_alto = st.number_input(
+        "Valor alto de transición",
+        value=0.5,
+        step=0.1,
+        format="%.4f"
+    )
 
-    cambio_minimo = st.number_input("Cambio mínimo para detectar evento (mm)", value=0.05, step=0.01, format="%.4f")
-    tolerancia_estable = st.number_input("Tolerancia para considerar estable (± mm)", value=0.02, step=0.005, format="%.4f")
-    consecutivos_estable = st.number_input("Puntos consecutivos dentro de tolerancia", min_value=1, value=3, step=1)
+    cambio_minimo = st.number_input(
+        "Cambio mínimo para detectar evento (mm)",
+        value=0.05,
+        step=0.01,
+        format="%.4f"
+    )
+    tolerancia_estable = st.number_input(
+        "Tolerancia para considerar estable (± mm)",
+        value=0.02,
+        step=0.005,
+        format="%.4f"
+    )
+    consecutivos_estable = st.number_input(
+        "Puntos consecutivos dentro de tolerancia",
+        min_value=1,
+        value=3,
+        step=1
+    )
 
 if not archivo:
     st.info("Sube un archivo Excel para comenzar.")
@@ -330,9 +362,13 @@ eventos = analizar_eventos_cambio(
 )
 
 resumen = resumen_eventos(eventos)
-eventos_especificos = filtrar_transiciones_especificas(eventos, valor_bajo=valor_bajo, valor_alto=valor_alto)
+eventos_especificos = filtrar_transiciones_especificas(
+    eventos,
+    valor_bajo=valor_bajo,
+    valor_alto=valor_alto
+)
 
-st.subheader("Gráfica principal: diámetro medido vs tiempo")
+st.subheader("Serie temporal del proceso")
 
 if col_tiempo and "_tiempo_dt" in df.columns and df["_tiempo_dt"].notna().sum() > 0:
     x_line = "_tiempo_dt"
@@ -354,12 +390,15 @@ fig_line.add_trace(go.Scatter(
     mode="lines",
     name="Diámetro objetivo"
 ))
+fig_line.update_layout(
+    xaxis_title="Tiempo",
+    yaxis_title="Diámetro"
+)
 st.plotly_chart(fig_line, use_container_width=True)
 
-st.subheader("Respuesta del proceso: diámetro medido vs tiempo")
+st.subheader("Respuesta del proceso: tiempo en X y diámetro medido en Y")
 
 if col_tiempo:
-
     x_time = "_tiempo_dt" if df["_tiempo_dt"].notna().sum() > 0 else col_tiempo
 
     fig_scatter = px.scatter(
@@ -370,11 +409,11 @@ if col_tiempo:
         title="Diámetro medido en función del tiempo",
         hover_data=[col_obj]
     )
-
+    fig_scatter.update_layout(
+        xaxis_title="Tiempo",
+        yaxis_title="Diámetro medido"
+    )
     st.plotly_chart(fig_scatter, use_container_width=True)
-
-else:
-    st.warning("Selecciona una columna de tiempo para generar la gráfica.")
 else:
     st.info("Para esta gráfica necesitas seleccionar una columna de tiempo.")
 
@@ -385,11 +424,15 @@ m1.metric("Eventos detectados", int(len(eventos)))
 m2.metric("Transiciones 0.2 ↔ 0.5", int(len(eventos_especificos)))
 m3.metric(
     "Tiempo promedio de respuesta (seg)",
-    f"{eventos['tiempo_respuesta_seg'].mean():.2f}" if not eventos.empty and eventos["tiempo_respuesta_seg"].notna().any() else "N/D"
+    f"{eventos['tiempo_respuesta_seg'].mean():.2f}"
+    if not eventos.empty and eventos["tiempo_respuesta_seg"].notna().any()
+    else "N/D"
 )
 m4.metric(
     "Overshoot promedio (mm)",
-    f"{eventos['overshoot_mm'].mean():.4f}" if not eventos.empty and eventos["overshoot_mm"].notna().any() else "N/D"
+    f"{eventos['overshoot_mm'].mean():.4f}"
+    if not eventos.empty and eventos["overshoot_mm"].notna().any()
+    else "N/D"
 )
 
 st.dataframe(resumen, use_container_width=True)
@@ -426,12 +469,17 @@ else:
     with c5:
         st.metric(
             f"Tiempo promedio {valor_bajo:.1f} -> {valor_alto:.1f}",
-            f"{trans_up['tiempo_respuesta_seg'].mean():.2f} s" if not trans_up.empty and trans_up["tiempo_respuesta_seg"].notna().any() else "N/D"
+            f"{trans_up['tiempo_respuesta_seg'].mean():.2f} s"
+            if not trans_up.empty and trans_up["tiempo_respuesta_seg"].notna().any()
+            else "N/D"
         )
+
     with c6:
         st.metric(
             f"Tiempo promedio {valor_alto:.1f} -> {valor_bajo:.1f}",
-            f"{trans_down['tiempo_respuesta_seg'].mean():.2f} s" if not trans_down.empty and trans_down["tiempo_respuesta_seg"].notna().any() else "N/D"
+            f"{trans_down['tiempo_respuesta_seg'].mean():.2f} s"
+            if not trans_down.empty and trans_down["tiempo_respuesta_seg"].notna().any()
+            else "N/D"
         )
 
     fig_box = px.box(
@@ -440,6 +488,10 @@ else:
         y="tiempo_respuesta_seg",
         points="all",
         title="Distribución del tiempo de respuesta por transición"
+    )
+    fig_box.update_layout(
+        xaxis_title="Transición",
+        yaxis_title="Tiempo de respuesta (seg)"
     )
     st.plotly_chart(fig_box, use_container_width=True)
 
@@ -450,7 +502,10 @@ else:
         color="transicion",
         title="Overshoot por evento"
     )
-    fig_over.update_layout(xaxis_title="Evento", yaxis_title="Overshoot (mm)")
+    fig_over.update_layout(
+        xaxis_title="Evento",
+        yaxis_title="Overshoot (mm)"
+    )
     st.plotly_chart(fig_over, use_container_width=True)
 
     st.write("Detalle de eventos detectados")
