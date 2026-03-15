@@ -60,29 +60,31 @@ def preparar_datos(
 ) -> pd.DataFrame:
     trabajo = df.copy()
 
+    trabajo = convertir_numerico(trabajo, [col_obj, col_med])
+
+    trabajo["_tiempo_dt"] = pd.NaT
+    trabajo["_tiempo_seg"] = np.nan
+
     if col_tiempo:
-        tiempo_parseado = pd.to_datetime(trabajo[col_tiempo], errors="coerce")
-        if tiempo_parseado.notna().sum() > 0:
-            trabajo["_tiempo_dt"] = tiempo_parseado
+        tiempo_num = pd.to_numeric(trabajo[col_tiempo], errors="coerce")
+
+        if tiempo_num.notna().sum() > 0:
+            trabajo["_tiempo_seg"] = tiempo_num
         else:
-            trabajo["_tiempo_dt"] = pd.NaT
-    else:
-        trabajo["_tiempo_dt"] = pd.NaT
+            tiempo_parseado = pd.to_datetime(trabajo[col_tiempo], errors="coerce")
+            if tiempo_parseado.notna().sum() > 0:
+                trabajo["_tiempo_dt"] = tiempo_parseado
 
     if col_orden:
         trabajo = trabajo.sort_values(by=col_orden).reset_index(drop=True)
     elif trabajo["_tiempo_dt"].notna().sum() > 0:
         trabajo = trabajo.sort_values(by="_tiempo_dt").reset_index(drop=True)
+    elif trabajo["_tiempo_seg"].notna().sum() > 0:
+        trabajo = trabajo.sort_values(by="_tiempo_seg").reset_index(drop=True)
     else:
         trabajo = trabajo.reset_index(drop=True)
 
     trabajo["_fila"] = np.arange(len(trabajo))
-
-    trabajo = convertir_numerico(trabajo, [col_obj, col_med])
-
-    if col_tiempo and trabajo["_tiempo_dt"].isna().all():
-        trabajo[col_tiempo] = pd.to_numeric(trabajo[col_tiempo], errors="coerce")
-
     trabajo["objetivo_anterior"] = trabajo[col_obj].shift(1)
     trabajo["delta_objetivo"] = trabajo[col_obj] - trabajo["objetivo_anterior"]
 
@@ -103,6 +105,12 @@ def tiempo_evento(
         t1 = df.loc[idx_fin, "_tiempo_dt"]
         if pd.notna(t0) and pd.notna(t1):
             return (t1 - t0).total_seconds()
+
+    if "_tiempo_seg" in df.columns:
+        t0 = df.loc[idx_inicio, "_tiempo_seg"]
+        t1 = df.loc[idx_fin, "_tiempo_seg"]
+        if pd.notna(t0) and pd.notna(t1):
+            return float(t1) - float(t0)
 
     if col_tiempo and col_tiempo in df.columns:
         t0 = df.loc[idx_inicio, col_tiempo]
@@ -306,7 +314,7 @@ columnas = df_original.columns.tolist()
 
 sug_obj = detectar_columna(["diametro objetivo", "objetivo", "target"], columnas)
 sug_med = detectar_columna(["diametro medido", "medido", "real", "measured"], columnas)
-sug_tiempo = detectar_columna(["tiempo", "seg", "timestamp", "fecha", "hora"], columnas)
+sug_tiempo = detectar_columna(["tiempo", "seg", "segundos", "timestamp", "fecha", "hora"], columnas)
 sug_orden = detectar_columna(["orden", "secuencia", "id", "index"], columnas)
 
 c1, c2, c3, c4 = st.columns(4)
@@ -372,6 +380,8 @@ st.subheader("Serie temporal del proceso")
 
 if col_tiempo and "_tiempo_dt" in df.columns and df["_tiempo_dt"].notna().sum() > 0:
     x_line = "_tiempo_dt"
+elif col_tiempo and "_tiempo_seg" in df.columns and df["_tiempo_seg"].notna().sum() > 0:
+    x_line = "_tiempo_seg"
 elif col_tiempo:
     x_line = col_tiempo
 else:
@@ -391,7 +401,7 @@ fig_line.add_trace(go.Scatter(
     name="Diámetro objetivo"
 ))
 fig_line.update_layout(
-    xaxis_title="Tiempo",
+    xaxis_title="Tiempo (seg)" if x_line == "_tiempo_seg" else "Tiempo",
     yaxis_title="Diámetro"
 )
 st.plotly_chart(fig_line, use_container_width=True)
@@ -399,7 +409,12 @@ st.plotly_chart(fig_line, use_container_width=True)
 st.subheader("Respuesta del proceso: tiempo en X y diámetro medido en Y")
 
 if col_tiempo:
-    x_time = "_tiempo_dt" if df["_tiempo_dt"].notna().sum() > 0 else col_tiempo
+    if df["_tiempo_dt"].notna().sum() > 0:
+        x_time = "_tiempo_dt"
+    elif df["_tiempo_seg"].notna().sum() > 0:
+        x_time = "_tiempo_seg"
+    else:
+        x_time = col_tiempo
 
     fig_scatter = px.scatter(
         df,
@@ -410,7 +425,7 @@ if col_tiempo:
         hover_data=[col_obj]
     )
     fig_scatter.update_layout(
-        xaxis_title="Tiempo",
+        xaxis_title="Tiempo (seg)" if x_time == "_tiempo_seg" else "Tiempo",
         yaxis_title="Diámetro medido"
     )
     st.plotly_chart(fig_scatter, use_container_width=True)
